@@ -15,6 +15,7 @@ import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.User;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ForceReplyKeyboard;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
@@ -44,6 +45,8 @@ public class RemindMeetingBot extends TelegramLongPollingBot {
     private static final DateTimeFormatter ddMMYYYY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     public static final int PAGE_SIZE = 4;
     public static final int MAX_PAGE_SIZE = 3;
+    public static final String INPUT_TIME_MESSAGE = "Nhập giờ theo format : hh:mm";
+    public static final String INPUT_NOTE_MESSAGE = "Nhập note lại cho mọi người sau này nhé:";
 
     List<String> list7DaysLater = new ArrayList<>();
 
@@ -97,14 +100,85 @@ public class RemindMeetingBot extends TelegramLongPollingBot {
 
             //nếu có user và user đang chaining
             if (userInfos.containsKey(userId) && userInfoOrDefault.isChaining) {
-                //TODO doing here
-                stepMessageRouter.get(userInfoOrDefault.step).accept(update, userInfoOrDefault);
+
+                //nếu là repley message
+                if (update.getMessage().isReply()) {
+                    if (INPUT_TIME_MESSAGE.equals(update.getMessage().getReplyToMessage().getText())) {
+                        handleTimeInputMessage(update, userInfoOrDefault);
+                    } else if (INPUT_NOTE_MESSAGE.equals(update.getMessage().getReplyToMessage().getText())) {
+                        handleNoteInputMessage(update, userInfoOrDefault);
+                    }
+                } else stepMessageRouter.get(userInfoOrDefault.step).accept(update, userInfoOrDefault);
             }
 
             //nếu msg là msg có entities -> có thể có command
             if (update.getMessage().hasEntities()) {
                 handleMessageWithEntities(update);
             }
+        }
+    }
+
+    private void handleNoteInputMessage(Update update, RemindBotUserInfo userInfo) {
+        String noteInput = update.getMessage().getText();
+
+        userInfos.replace(userInfo.userId,
+                RemindBotUserInfo.builder()
+                        .userId(userInfo.userId)
+                        .step(userInfo.step)
+                        .isChaining(userInfo.isChaining)
+                        .commandChaining(userInfo.commandChaining)
+                        .chosenUserLst(userInfo.chosenUserLst)
+                        .chosenTime(userInfo.chosenTime)
+                        .chosenDate(userInfo.chosenDate)
+                        .currentDayPage(userInfo.currentDayPage)
+                        .userNote(noteInput)
+                        .build());
+
+        log.info("done");
+
+        new Thread(() -> {
+
+        });
+
+        userInfos.remove(userInfo.userId);
+    }
+
+    private void handleTimeInputMessage(Update update, RemindBotUserInfo userInfo) {
+        String timeInput = update.getMessage().getText();
+
+        userInfos.replace(userInfo.userId,
+                RemindBotUserInfo.builder()
+                        .userId(userInfo.userId)
+                        .step(userInfo.step)
+                        .isChaining(userInfo.isChaining)
+                        .commandChaining(userInfo.commandChaining)
+                        .chosenUserLst(userInfo.chosenUserLst)
+                        .chosenTime(timeInput)
+                        .chosenDate(userInfo.chosenDate)
+                        .currentDayPage(userInfo.currentDayPage)
+                        .userNote(userInfo.userNote)
+                        .build());
+
+        handleFourthStep(update, userInfo);
+    }
+
+    private void handleFourthStep(Update update, RemindBotUserInfo userInfo) {
+        ForceReplyKeyboard forceReply = new ForceReplyKeyboard();
+        forceReply.setForceReply(true);
+        forceReply.setInputFieldPlaceholder("Nhập note cho tin nhắn");
+
+        SendMessage sendMessage = new SendMessage();
+
+        sendMessage.setText(INPUT_NOTE_MESSAGE);
+
+        sendMessage.setChatId(String.valueOf(update.getMessage().getChatId()));
+
+        sendMessage.setReplyMarkup(forceReply);
+
+        try {
+            execute(sendMessage);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
         }
     }
 
@@ -166,10 +240,28 @@ public class RemindMeetingBot extends TelegramLongPollingBot {
     }
 
     private void handleThirdStep(Update update, RemindBotUserInfo remindBotUserInfo) {
+
+        ForceReplyKeyboard forceReply = new ForceReplyKeyboard();
+        forceReply.setForceReply(true);
+        forceReply.setInputFieldPlaceholder("hh:mm");
+
+        SendMessage sendMessage = new SendMessage();
+
+        sendMessage.setText(INPUT_TIME_MESSAGE);
+
+        sendMessage.setChatId(String.valueOf(update.getCallbackQuery().getMessage().getChatId()));
+
+        sendMessage.setReplyMarkup(forceReply);
+
+        try {
+            execute(sendMessage);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
+
     }
 
     private void handleSecondStep(Update update, RemindBotUserInfo remindBotUserInfo) {
-
 
 
         log.info("stop here");
@@ -199,7 +291,7 @@ public class RemindMeetingBot extends TelegramLongPollingBot {
 
         sendMessage.setParseMode(ParseMode.MARKDOWN);
 
-        sendMessage.setText("Xin mời bạn chọn ngày và giờ");
+        sendMessage.setText("Xin mời bạn chọn ngày");
 
         sendMessage.setReplyMarkup(inlineKeyboardMarkup);
 
@@ -229,11 +321,6 @@ public class RemindMeetingBot extends TelegramLongPollingBot {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-
-        //send time
-
-
-//        userInfos.clear();
     }
 
     private void handleMessageWithEntities(Update update) {
@@ -274,6 +361,8 @@ public class RemindMeetingBot extends TelegramLongPollingBot {
                     .isChaining(userInfo.isChaining)
                     .commandChaining(userInfo.commandChaining)
                     .chosenUserLst(userInfo.chosenUserLst)
+                    .currentDayPage(userInfo.currentDayPage)
+                    .userNote(userInfo.userNote)
                     .build());
 
             AnswerCallbackQuery answerCallbackQuery = new AnswerCallbackQuery(callbackQuery.getId());
@@ -346,18 +435,18 @@ public class RemindMeetingBot extends TelegramLongPollingBot {
         List<String> result = new ArrayList<>();
         result.add("<<");
 
-        if("<<".equals(callBackData)){
+        if ("<<".equals(callBackData)) {
 
             int page = Math.max(0, userInfo.currentDayPage - 1);
 
-            IntStream.range(page*PAGE_SIZE, page*PAGE_SIZE+4).forEach(i -> result.add(LocalDateTime.now().plus(i, ChronoUnit.DAYS).format(ddMMYYYY).substring(0, 5)));
+            IntStream.range(page * PAGE_SIZE, page * PAGE_SIZE + 4).forEach(i -> result.add(LocalDateTime.now().plus(i, ChronoUnit.DAYS).format(ddMMYYYY).substring(0, 5)));
             result.add(">>");
 
             replyOptions.add(result);
 
             editMessageReplyMarkup.setReplyMarkup(createInlineKeyBoardMarkUp(replyOptions, "type to cancle"));
 
-            if(userInfo.currentDayPage != 0){
+            if (userInfo.currentDayPage != 0) {
                 try {
                     execute(editMessageReplyMarkup);
                 } catch (TelegramApiException e) {
@@ -366,14 +455,14 @@ public class RemindMeetingBot extends TelegramLongPollingBot {
             }
 
             userInfos.replace(userInfo.userId, RemindBotUserInfo.builder()
-                            .userId(userInfo.userId)
-                            .isChaining(userInfo.isChaining)
-                            .commandChaining(userInfo.commandChaining)
-                            .step(userInfo.step)
-                            .chosenDate(userInfo.chosenDate)
-                            .chosenTime(userInfo.chosenTime)
-                            .currentDayPage(page)
-                            .chosenUserLst(userInfo.chosenUserLst)
+                    .userId(userInfo.userId)
+                    .isChaining(userInfo.isChaining)
+                    .commandChaining(userInfo.commandChaining)
+                    .step(userInfo.step)
+                    .chosenDate(userInfo.chosenDate)
+                    .chosenTime(userInfo.chosenTime)
+                    .currentDayPage(page)
+                    .chosenUserLst(userInfo.chosenUserLst)
                     .build());
 
             AnswerCallbackQuery answerCallbackQuery = new AnswerCallbackQuery(callbackQuery.getId());
@@ -382,18 +471,18 @@ public class RemindMeetingBot extends TelegramLongPollingBot {
             } catch (TelegramApiException e) {
                 e.printStackTrace();
             }
-        }else if(">>".equals(callBackData)){
+        } else if (">>".equals(callBackData)) {
 
-            int page = Math.min(MAX_PAGE_SIZE, userInfo.currentDayPage+1);
+            int page = Math.min(MAX_PAGE_SIZE, userInfo.currentDayPage + 1);
 
-            IntStream.range(page*PAGE_SIZE, page*PAGE_SIZE+4).forEach(i -> result.add(LocalDateTime.now().plus(i, ChronoUnit.DAYS).format(ddMMYYYY).substring(0, 5)));
+            IntStream.range(page * PAGE_SIZE, page * PAGE_SIZE + 4).forEach(i -> result.add(LocalDateTime.now().plus(i, ChronoUnit.DAYS).format(ddMMYYYY).substring(0, 5)));
             result.add(">>");
 
             replyOptions.add(result);
 
             editMessageReplyMarkup.setReplyMarkup(createInlineKeyBoardMarkUp(replyOptions, "type to cancle"));
 
-            if(userInfo.currentDayPage != MAX_PAGE_SIZE){
+            if (userInfo.currentDayPage != MAX_PAGE_SIZE) {
                 try {
                     execute(editMessageReplyMarkup);
                 } catch (TelegramApiException e) {
@@ -430,6 +519,15 @@ public class RemindMeetingBot extends TelegramLongPollingBot {
                     .currentDayPage(userInfo.currentDayPage)
                     .chosenUserLst(userInfo.chosenUserLst)
                     .build());
+
+            AnswerCallbackQuery answerCallbackQuery = new AnswerCallbackQuery(callbackQuery.getId());
+            try {
+                execute(answerCallbackQuery);
+            } catch (TelegramApiException e) {
+                e.printStackTrace();
+            }
+
+            handleThirdStep(update, userInfo);
         }
     }
 
@@ -525,6 +623,7 @@ public class RemindMeetingBot extends TelegramLongPollingBot {
         FIRST_STEP,
         SECOND_STEP,
         THIRD_STEP,
+        FOURTH_STEP,
         NO_STEP
     }
 }
