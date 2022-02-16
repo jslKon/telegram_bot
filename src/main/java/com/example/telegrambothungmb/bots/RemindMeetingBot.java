@@ -33,7 +33,7 @@ import java.util.stream.IntStream;
 
 import static com.example.telegrambothungmb.bots.RemindMeetingBot.STEPS.*;
 
-@Component
+//@Component
 @Slf4j
 public class RemindMeetingBot extends TelegramLongPollingBot {
 

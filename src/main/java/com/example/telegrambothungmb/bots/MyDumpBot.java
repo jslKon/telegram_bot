@@ -202,7 +202,7 @@ public class MyDumpBot extends TelegramLongPollingBot {
         SEND_QR("/SEND_QR"),
         SLEEP("/SLEEP");
 
-        private final String command;
+        final String command;
 
         BOT_COMMANDS(String command) {
             this.command = command;
