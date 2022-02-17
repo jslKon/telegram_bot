@@ -8,9 +8,12 @@ import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.polls.SendPoll;
+import org.telegram.telegrambots.meta.api.methods.polls.StopPoll;
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.User;
+import org.telegram.telegrambots.meta.api.objects.polls.Poll;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException;
 import org.telegram.telegrambots.meta.updateshandlers.SentCallback;
@@ -22,9 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import static com.example.telegrambothungmb.bots.MyDumpBot.BOT_COMMANDS.*;
-import static com.example.telegrambothungmb.bots.SingleStepBot.BOT_COMMANDS.DRINK;
-import static com.example.telegrambothungmb.bots.SingleStepBot.BOT_COMMANDS.GET_TELEGRAM_ID;
+import static com.example.telegrambothungmb.bots.SingleStepBot.BOT_COMMANDS.*;
+import static com.example.telegrambothungmb.bots.SingleStepBot.BOT_COMMANDS.SLEEP;
 
 @Component
 @Slf4j
@@ -37,7 +39,9 @@ public class SingleStepBot extends TelegramLongPollingBot {
 
     static Map<String, Consumer<Update>> botCmdGateWay = new HashMap<>();
 
-    static Map<String, UserDrinkInfo> userDrinkInfoMap = new HashMap<>();
+    static Map<Long, UserDrinkInfo> userDrinkInfoMap = new HashMap<>();
+
+    private static Map<String, Long> userIdPollIdMap = new HashMap<>();
 
     private final ReadXlsxFileUtils readXlsxFileUtils;
 
@@ -45,9 +49,11 @@ public class SingleStepBot extends TelegramLongPollingBot {
     @PostConstruct
     void setUp() {
         botCmdGateWay.put(DRINK.command, this::handleDrinkCommand);
+        botCmdGateWay.put(CLOSE_DRINK_POLL.command, this::handleCloseDrinkPollCommand);
         botCmdGateWay.put(GET_TELEGRAM_ID.command, this::handleGetTelegramIdCommand);
         botCmdGateWay.put(SLEEP.command, this::handleSleepCommand);
     }
+
 
     @Override
     public String getBotToken() {
@@ -121,7 +127,7 @@ public class SingleStepBot extends TelegramLongPollingBot {
         List<String> lstOptions = new ArrayList<>();
 
         readXlsxFileUtils.readByKeyValue("src/main/resources/files/DrinkLst.xlsx").forEach(row -> {
-            lstOptions.add(String.format("%s, %s", row.getCell(0).getStringCellValue(), row.getCell(1).getStringCellValue()));
+            lstOptions.add(String.format("%s - %s", row.getCell(0).getStringCellValue(), row.getCell(1).getStringCellValue()));
         });
 
         return lstOptions;
@@ -136,7 +142,7 @@ public class SingleStepBot extends TelegramLongPollingBot {
         sendPoll.setQuestion(question);
         sendPoll.setOptions(lstOptions);
         sendPoll.setIsAnonymous(false);
-        sendPoll.setCloseDate(10);
+//        sendPoll.setCloseDate(10);
 
         try {
             executeAsync(sendPoll, new SentCallback<Message>() {
@@ -147,14 +153,17 @@ public class SingleStepBot extends TelegramLongPollingBot {
                     //add new user to the map
                     String pollId = message.getPoll().getId();
 
-                    userDrinkInfoMap.put(pollId, UserDrinkInfo.builder()
+                    userDrinkInfoMap.put(fromUserId, UserDrinkInfo.builder()
                             .id(fromUserId)
                             .pollId(pollId)
+                            .msgId(message.getMessageId())
                             .chatId(Long.valueOf(chatId))
                             .options(lstOptions)
                             .lstOrder(new HashMap<>())
                             .build()
                     );
+
+                    userIdPollIdMap.put(pollId, fromUserId);
                 }
 
                 @Override
@@ -175,21 +184,96 @@ public class SingleStepBot extends TelegramLongPollingBot {
     private void handlePollAnswer(Update update) {
         String pollId = update.getPollAnswer().getPollId();
 
-        if(userDrinkInfoMap.containsKey(pollId)){
+        Long pollCreatorId = userIdPollIdMap.get(pollId);
 
-            UserDrinkInfo userDrinkInfo = userDrinkInfoMap.get(pollId);
+        if (userDrinkInfoMap.containsKey(pollCreatorId)) {
+
+            UserDrinkInfo userDrinkInfo = userDrinkInfoMap.get(pollCreatorId);
 
             Map<User, List<Integer>> answers = userDrinkInfo.lstOrder;
 
             answers.put(update.getPollAnswer().getUser(), update.getPollAnswer().getOptionIds());
 
-            userDrinkInfoMap.replace(pollId, UserDrinkInfo.builder()
-                            .id(userDrinkInfo.id)
-                            .chatId(userDrinkInfo.chatId)
-                            .pollId(userDrinkInfo.pollId)
-                            .options(userDrinkInfo.options)
-                            .lstOrder(answers)
+            userDrinkInfoMap.replace(pollCreatorId, UserDrinkInfo.builder()
+                    .id(userDrinkInfo.id)
+                    .chatId(userDrinkInfo.chatId)
+                    .pollId(userDrinkInfo.pollId)
+                    .msgId(userDrinkInfo.msgId)
+                    .options(userDrinkInfo.options)
+                    .lstOrder(answers)
                     .build());
+        }
+
+        log.info("add answer");
+    }
+
+    private void handleCloseDrinkPollCommand(Update update) {
+
+        Long userId = update.getMessage().getFrom().getId();
+
+        UserDrinkInfo userDrinkInfo = userDrinkInfoMap.get(userId);
+
+        StopPoll stopPoll = new StopPoll();
+
+        stopPoll.setChatId("-1001739712412");
+        stopPoll.setMessageId(userDrinkInfo.msgId);
+
+        try {
+            executeAsync(stopPoll, new SentCallback<Poll>() {
+                @Override
+                public void onResult(BotApiMethod<Poll> botApiMethod, Poll poll) {
+                    log.info("a");
+
+                    sendOrderInfo(userId, userDrinkInfo);
+                    userDrinkInfoMap.remove(userIdPollIdMap.get(poll.getId()));
+
+                    userIdPollIdMap.remove(poll.getId());
+                }
+
+                @Override
+                public void onError(BotApiMethod<Poll> botApiMethod, TelegramApiRequestException e) {
+
+                }
+
+                @Override
+                public void onException(BotApiMethod<Poll> botApiMethod, Exception e) {
+
+                }
+            });
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void sendOrderInfo(Long userId, UserDrinkInfo userDrinkInfo) {
+        SendMessage msg = new SendMessage();
+
+        msg.setChatId(String.valueOf(userId));
+
+        List<String> orders = new ArrayList<>();
+
+        userDrinkInfo.lstOrder.forEach((user, info) -> {
+
+            StringBuilder order = new StringBuilder(user.getFirstName()+ " ");
+
+            for(int i = 0; i<info.size(); i++){
+                order.append(userDrinkInfo.options.get(i)).append(" ");
+            }
+
+            orders.add(order.toString());
+        });
+
+        StringBuilder orderText = new StringBuilder();
+
+        for (String order : orders) {
+            orderText.append(order).append(" \n");
+        }
+        msg.setText(orderText.toString());
+
+        try {
+            execute(msg);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
         }
     }
 
@@ -209,6 +293,7 @@ public class SingleStepBot extends TelegramLongPollingBot {
 
     enum BOT_COMMANDS {
         DRINK("/DRINK"),
+        CLOSE_DRINK_POLL("/CLOSE_DRINK"),
         GET_TELEGRAM_ID("/ID"),
         SLEEP("/SLEEP");
 
@@ -227,6 +312,8 @@ public class SingleStepBot extends TelegramLongPollingBot {
         Long chatId;
 
         String pollId;
+
+        Integer msgId;
 
         List<String> options;
 
