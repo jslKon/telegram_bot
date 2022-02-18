@@ -36,7 +36,7 @@ public class SingleStepBot extends TelegramLongPollingBot {
 
     private static final String BOT_TOKEN = "5164507812:AAESgXS8vsF57MNEyjZUX7fDDyOK2gVznWA";
 
-    private DateTimeFormatter dft = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy");
+    private final DateTimeFormatter dft = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy");
 
     public static final String SINGLE_STEP_BOT = "SingleStepBot";
 
@@ -75,11 +75,8 @@ public class SingleStepBot extends TelegramLongPollingBot {
 
         //if message
         if (update.hasMessage()) {
-
             //handle normal message
             handleNormalMessage(update);
-
-            //handle message with reply
         }
 
         //handle poll answer
@@ -89,12 +86,24 @@ public class SingleStepBot extends TelegramLongPollingBot {
 
     }
 
+    private void handleMessageWithReplyMessage(Update update) {
+
+    }
+
     private void handleNormalMessage(Update update) {
         if (update.getMessage().isCommand()) {
             //handle normal message with command
             botCmdGateWay.get(update.getMessage().getEntities().get(0).getText()).accept(update);
-        } else {
+        } else if(update.getMessage().getForwardFrom() != null){
             //TODO handle normal message with no command
+            User forwardFromUser = update.getMessage().getForwardFrom();
+            StringBuilder sb = new StringBuilder("Thông tin của người được forward tin nhắn : \n");
+            sb.append("ID : ").append(forwardFromUser.getId()).append("\n");
+            sb.append("First Name: ").append(forwardFromUser.getFirstName()).append("\n");
+
+            if(forwardFromUser.getLastName() != null) sb.append("Last Name: ").append(forwardFromUser.getLastName()).append("\n");
+            if(forwardFromUser.getUserName() != null) sb.append("UserName: ").append(forwardFromUser.getUserName()).append("\n");
+            sendMsgToChatId(update, sb.toString());
         }
     }
 
@@ -367,6 +376,7 @@ public class SingleStepBot extends TelegramLongPollingBot {
 
     private void handleGetTelegramIdCommand(Update update) {
 
+        log.info("a");
     }
 
 
