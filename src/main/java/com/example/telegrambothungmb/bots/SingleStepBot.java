@@ -19,11 +19,12 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException;
 import org.telegram.telegrambots.meta.updateshandlers.SentCallback;
 
 import javax.annotation.PostConstruct;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
 import static com.example.telegrambothungmb.bots.SingleStepBot.BOT_COMMANDS.*;
 import static com.example.telegrambothungmb.bots.SingleStepBot.BOT_COMMANDS.SLEEP;
@@ -34,6 +35,8 @@ import static com.example.telegrambothungmb.bots.SingleStepBot.BOT_COMMANDS.SLEE
 public class SingleStepBot extends TelegramLongPollingBot {
 
     private static final String BOT_TOKEN = "5164507812:AAESgXS8vsF57MNEyjZUX7fDDyOK2gVznWA";
+
+    private DateTimeFormatter dft = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy");
 
     public static final String SINGLE_STEP_BOT = "SingleStepBot";
 
@@ -254,9 +257,9 @@ public class SingleStepBot extends TelegramLongPollingBot {
 
         userDrinkInfo.lstOrder.forEach((user, info) -> {
 
-            StringBuilder order = new StringBuilder(user.getFirstName()+ " ");
+            StringBuilder order = new StringBuilder(user.getFirstName() + " ");
 
-            for(int i = 0; i<info.size(); i++){
+            for (int i = 0; i < info.size(); i++) {
                 order.append(userDrinkInfo.options.get(i)).append(" ");
             }
 
@@ -278,13 +281,89 @@ public class SingleStepBot extends TelegramLongPollingBot {
     }
 
     /**
-     * /SLEEP
+     * /SLEEP hh:mm dd/MM/YYYY duration(minute)
      *
      * @param update
      */
     private void handleSleepCommand(Update update) {
 
+        List<String> params = Arrays.asList(update.getMessage().getText().split("\\s+"));
+
+        String validateCommandParams = validateSleepCommand(params.get(1).trim(), params.get(2).trim(), params.get(3).trim());
+
+        if(!"OK".equals(validateCommandParams)){
+            sendMsgToChatId(update, validateCommandParams);
+            return;
+        }
+
+        log.info("params from the command : {}", params);
+
+        LocalDateTime chosenTime = LocalDateTime.parse(String.format("%s %s", params.get(1).trim(), params.get(2).trim()), dft);
+
+        if(chosenTime.isBefore(LocalDateTime.now())){
+            sendMsgToChatId(update, "Đã qua thời gian được chọn");
+            return;
+        }
+
+        List<String> result = new ArrayList<>();
+
+        LocalDateTime temp = chosenTime;
+
+        while (temp.isAfter(LocalDateTime.now())) {
+            result.add(temp.format(dft));
+
+            temp = temp.plus(-Long.parseLong(params.get(3)), ChronoUnit.MINUTES);
+        }
+
+        log.info("time from result: {}", result);
+
+        StringBuilder resultText = new StringBuilder("Bạn nên ngủ vào các khoảng giờ sau :  \n");
+
+        for (int i = result.size()-1; i > 0; i--) {
+            String time = result.get(i);
+            resultText.append(time).append("\n");
+        }
+
+        log.info("Times to show to user : {}", resultText);
+
+        sendMsgToChatId(update, resultText.toString());
     }
+
+    private void sendMsgToChatId(Update update, String resultText) {
+        SendMessage sendMessage = new SendMessage();
+
+        sendMessage.setChatId(String.valueOf(update.getMessage().getFrom().getId()));
+        sendMessage.setText(resultText);
+
+        try {
+            execute(sendMessage);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private String validateSleepCommand(String chosenTime, String chosenDate, String period) {
+        String chosenTimeRegex = "^[0-9]{2}:[0-9]{2}$";
+        String chosenDateRegex = "^[0-9]{2}/[0-9]{2}/[0-9]{4}$";
+        String periodRegex = "^[0-9]{1,3}";
+
+        if(!Pattern.matches(chosenTimeRegex, chosenTime)){
+            return "Nhập sai format thời gian (HH:mm)";
+        }
+        if(!Pattern.matches(chosenDateRegex, chosenDate)){
+            return "Nhập sai format ngày (dd/MM/yyyy)";
+        };
+        if(!Pattern.matches(periodRegex, period)){
+            return "Nhập sai format chu kỳ (tối đa 3 chữ sỗ tối thiểu 1 chứ số";
+        }
+        return "OK";
+    }
+
+    /**
+     * /ID
+     *
+     * @param update
+     */
 
     private void handleGetTelegramIdCommand(Update update) {
 
