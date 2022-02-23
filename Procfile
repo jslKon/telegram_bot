@@ -1,1 +1,1 @@
-worker: sh src/main/java/com/example/telegrambothungmb/TelegramBotHungmbApplication.java
+worker: java -jar target/telegram-bot-hungmb-0.0.1-SNAPSHOT.jar
