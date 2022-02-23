@@ -1,1 +1,1 @@
-worker: sh target/bin/workerBot
+worker: sh src/main/java/com/example/telegrambothungmb/TelegramBotHungmbApplication.java
