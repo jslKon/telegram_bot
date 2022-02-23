@@ -16,4 +16,9 @@ public class BotController {
     public CurrencyRatio test() {
         return botAPIsService.getRatio("USD_VND,EUR_VND", "ultra", "72605790ef0e9cce9fe8");
     }
+
+    @GetMapping
+    public void getUpdate(){
+
+    }
 }
