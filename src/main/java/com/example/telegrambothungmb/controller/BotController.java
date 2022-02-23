@@ -8,12 +8,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class BotController {
-//
-//    @Autowired
-//    BotAPIsService botAPIsService;
-//
-//    @GetMapping
-//    public CurrencyRatio test() {
-//        return botAPIsService.getRatio("USD_VND,EUR_VND", "ultra", "72605790ef0e9cce9fe8");
-//    }
+
+    @Autowired
+    BotAPIsService botAPIsService;
+
+    @GetMapping
+    public CurrencyRatio test() {
+        return botAPIsService.getRatio("USD_VND,EUR_VND", "ultra", "72605790ef0e9cce9fe8");
+    }
 }
