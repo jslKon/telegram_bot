@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: it.tdlight:tdlight-natives-linux-amd64:4.0.219">
+    <CLASSES>
+      <root url="jar://$MAVEN_REPOSITORY$/it/tdlight/tdlight-natives-linux-amd64/4.0.219/tdlight-natives-linux-amd64-4.0.219.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$MAVEN_REPOSITORY$/it/tdlight/tdlight-natives-linux-amd64/4.0.219/tdlight-natives-linux-amd64-4.0.219-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$MAVEN_REPOSITORY$/it/tdlight/tdlight-natives-linux-amd64/4.0.219/tdlight-natives-linux-amd64-4.0.219-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>
